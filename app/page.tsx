@@ -53,7 +53,7 @@ export default function HomePage() {
                 </Select>
               </div>
               <PriceChart symbol={selectedSymbol} interval={selectedInterval} />
-              <LiveTradingAnalysis />
+              {/* <LiveTradingAnalysis /> */}
               <Accumulators />
               <div className="flex justify-center">
                 <Link href="/history">
