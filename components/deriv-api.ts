@@ -148,3 +148,48 @@ export const unsubscribeTicks = async (id: string): Promise<any> => {
   const api = await connectDerivAPI();
   return api.forget(id);
 };
+
+export const getSyntheticStats = async (symbol: string): Promise<any> => {
+  await connectDerivAPI();
+
+  return new Promise((resolve, reject) => {
+    if (!connection || connection.readyState !== WebSocket.OPEN) {
+      reject(new Error('WebSocket connection not ready'));
+      return;
+    }
+
+    const request = {
+      ticks_history: symbol,
+      adjust_start_time: 1,
+      count: 5000,
+      end: 'latest',
+      start: 1,
+      style: 'ticks'
+    };
+
+    const messageHandler = (msg: MessageEvent) => {
+      const data = JSON.parse(msg.data);
+      if (data.msg_type === 'history') {
+        connection!.removeEventListener('message', messageHandler);
+        
+        // Calculate stats from the received data
+        const prices = data.history.prices;
+        const stats = {
+          symbol: symbol,
+          last: prices[prices.length - 1],
+          high: Math.max(...prices),
+          low: Math.min(...prices),
+          average: prices.reduce((a: number, b: number) => a + b, 0) / prices.length
+        };
+        
+        resolve(stats);
+      } else if (data.error) {
+        connection!.removeEventListener('message', messageHandler);
+        reject(new Error(data.error.message));
+      }
+    };
+
+    connection.addEventListener('message', messageHandler);
+    connection.send(JSON.stringify(request));
+  });
+};
