@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -49,6 +49,8 @@ interface AccumulatorState {
   tradeStartTime: Date | null
   tickCount: number
   growthRate: number
+  consecutiveTickCounts: number[]
+  currentConsecutiveTicks: number
 }
 
 interface SyntheticStats {
@@ -72,7 +74,9 @@ export function Accumulators() {
     selectedMarket: 'V25_1S',
     tradeStartTime: null,
     tickCount: 0,
-    growthRate: 5
+    growthRate: 5,
+    consecutiveTickCounts: [],
+    currentConsecutiveTicks: 0
   })
 
   const [isTakeProfitEnabled, setIsTakeProfitEnabled] = useState(false)
@@ -80,8 +84,7 @@ export function Accumulators() {
   const [isLoadingStats, setIsLoadingStats] = useState(false)
 
   const simulatePriceChange = useCallback(() => {
-    // Simulating price changes based on the CSV data analysis
-    const volatilityFactor = 0.05 // Adjusted based on observed volatility
+    const volatilityFactor = 0.05
     const randomFactor = (Math.random() - 0.5) * 2
     return state.previousSpotPrice * volatilityFactor * randomFactor
   }, [state.previousSpotPrice])
@@ -93,10 +96,12 @@ export function Accumulators() {
         const newSpotPrice = state.previousSpotPrice + priceChange
         
         if (isWithinRange(newSpotPrice, state.previousSpotPrice)) {
-          const newStake = state.currentStake * (1 + state.growthRate / 100)
+          const newTickCount = state.tickCount + 1
+          const newStake = state.initialStake * (1 + state.growthRate / 100) * newTickCount
           const newProfit = newStake - state.initialStake
+          const newConsecutiveTicks = state.currentConsecutiveTicks + 1
           
-          if (state.tickCount >= MAX_TICKS || newProfit >= MAX_PAYOUT) {
+          if (newTickCount >= MAX_TICKS || newProfit >= MAX_PAYOUT) {
             closeTrade('won')
             return
           }
@@ -107,14 +112,21 @@ export function Accumulators() {
             profit: newProfit,
             currentSpotPrice: newSpotPrice,
             previousSpotPrice: prevState.currentSpotPrice,
-            tickCount: prevState.tickCount + 1
+            tickCount: newTickCount,
+            currentConsecutiveTicks: newConsecutiveTicks
           }))
 
           if (isTakeProfitEnabled && state.takeProfitAmount && newProfit >= state.takeProfitAmount) {
             closeTrade('won')
           }
         } else {
-          closeTrade('lost')
+          setState(prevState => ({
+            ...prevState,
+            consecutiveTickCounts: [...prevState.consecutiveTickCounts, prevState.currentConsecutiveTicks],
+            currentConsecutiveTicks: 0,
+            currentSpotPrice: newSpotPrice,
+            previousSpotPrice: prevState.currentSpotPrice
+          }))
         }
       }, 1000)
 
@@ -134,7 +146,11 @@ export function Accumulators() {
       tradeStartTime: new Date(),
       tickCount: 0,
       currentSpotPrice: INITIAL_SPOT_PRICE,
-      previousSpotPrice: INITIAL_SPOT_PRICE
+      previousSpotPrice: INITIAL_SPOT_PRICE,
+      consecutiveTickCounts: [],
+      currentConsecutiveTicks: 0,
+      profit: 0,
+      currentStake: prevState.initialStake
     }))
   }
 
@@ -152,7 +168,8 @@ export function Accumulators() {
       growthRate: state.growthRate,
       takeProfitAmount: state.takeProfitAmount,
       outcome,
-      tickCount: state.tickCount
+      tickCount: state.tickCount,
+      consecutiveTickCounts: [...state.consecutiveTickCounts, state.currentConsecutiveTicks]
     })
 
     setState(prevState => ({
@@ -163,7 +180,9 @@ export function Accumulators() {
       currentSpotPrice: INITIAL_SPOT_PRICE,
       previousSpotPrice: INITIAL_SPOT_PRICE,
       tradeStartTime: null,
-      tickCount: 0
+      tickCount: 0,
+      consecutiveTickCounts: [],
+      currentConsecutiveTicks: 0
     }))
 
     toast({
@@ -207,9 +226,8 @@ export function Accumulators() {
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="trade" className="text-white">
-          <TabsList className="grid w-full grid-cols-3 mb-6">
+          <TabsList className="grid w-full grid-cols-2 mb-6">
             <TabsTrigger value="trade">Trade</TabsTrigger>
-            <TabsTrigger value="chart">Chart</TabsTrigger>
             <TabsTrigger value="stats">Stats</TabsTrigger>
           </TabsList>
           <TabsContent value="trade">
@@ -233,7 +251,14 @@ export function Accumulators() {
                 </Select>
                 <div className="flex items-center gap-2 text-zinc-400">
                   <Clock className="w-4 h-4" />
-                  <span className="text-sm">Ticks: {state.tickCount}</span>
+                  <span className="text-sm">
+                    Ticks: {state.tickCount}
+                    {state.isActive && (
+                      <span className="ml-2 text-emerald-500">
+                        (${state.profit.toFixed(2)})
+                      </span>
+                    )}
+                  </span>
                 </div>
                 <div className="text-2xl font-bold">{state.currentSpotPrice.toFixed(3)}</div>
               </div>
@@ -326,11 +351,6 @@ export function Accumulators() {
               </div>
             </div>
           </TabsContent>
-          <TabsContent value="chart">
-            <div className="h-[400px] flex items-center justify-center bg-zinc-900 rounded-lg text-zinc-400">
-              Chart visualization will be implemented here
-            </div>
-          </TabsContent>
           <TabsContent value="stats">
             {stats ? (
               <div className="space-y-4">
@@ -391,6 +411,8 @@ export function Accumulators() {
               <p>Profit: ${state.profit.toFixed(2)}</p>
               <p>Ticks: {state.tickCount}</p>
               <p>Current Spot Price: ${state.currentSpotPrice.toFixed(3)}</p>
+              <p>Consecutive Ticks: {state.currentConsecutiveTicks}</p>
+              <p>Tick History: {state.consecutiveTickCounts.join(', ')}</p>
               <Button 
                 onClick={() => closeTrade('won')} 
                 variant="outline" 
@@ -406,3 +428,5 @@ export function Accumulators() {
     </Card>
   )
 }
+
+export default Accumulators

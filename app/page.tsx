@@ -3,7 +3,7 @@
 import { TradingErrorBoundary } from "@/components/trading-error-boundary"
 import { LiveTradingAnalysis } from "@/components/live-trading-analysis"
 import { Accumulators } from "@/components/accumulators"
-import { PriceChart } from "@/components/price-chart"
+import  PriceChart  from "@/components/price-chart"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useState } from "react"
