@@ -274,14 +274,14 @@ export function Accumulators() {
                   >
                     {GROWTH_RATES.map((rate) => (
                       <div key={rate.value} className="flex items-center">
-                        <RadioGroupItem 
-                          value={rate.value.toString()} 
+                        <RadioGroupItem
+                          value={rate.value.toString()}
                           id={`rate-${rate.value}`}
-                          className="border-zinc-600"
+                          className="border-emerald-500 text-emerald-500 data-[state=checked]:border-emerald-500 data-[state=checked]:bg-emerald-500"
                         />
-                        <Label 
+                        <Label
                           htmlFor={`rate-${rate.value}`}
-                          className={`ml-2 ${state.growthRate === rate.value ? 'text-white' : 'text-zinc-400'}`}
+                          className={`ml-2 ${state.growthRate === rate.value ? 'text-emerald-500 font-medium' : 'text-zinc-400'}`}
                         >
                           {rate.label}
                         </Label>
