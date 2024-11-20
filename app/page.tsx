@@ -1,12 +1,13 @@
 'use client'
 
+import { useState } from "react"
+import Link from "next/link"
 import { TradingErrorBoundary } from "@/components/trading-error-boundary"
 import { LiveTradingAnalysis } from "@/components/live-trading-analysis"
 import { Accumulators } from "@/components/accumulators"
-import  PriceChart  from "@/components/price-chart"
+import { AccumulatorSimulation } from "@/components/accumulator-simulation"
+import PriceChart from "@/components/price-chart"
 import { Button } from "@/components/ui/button"
-import Link from "next/link"
-import { useState } from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export default function HomePage() {
@@ -26,7 +27,7 @@ export default function HomePage() {
 
           <TradingErrorBoundary>
             <div className="grid gap-8">
-              {/* <div className="flex flex-col md:flex-row gap-4 items-center justify-center">
+              <div className="flex flex-col md:flex-row gap-4 items-center justify-center">
                 <Select value={selectedSymbol} onValueChange={setSelectedSymbol}>
                   <SelectTrigger className="w-[180px]">
                     <SelectValue placeholder="Select symbol" />
@@ -51,10 +52,11 @@ export default function HomePage() {
                     <SelectItem value="3600">1 hour</SelectItem>
                   </SelectContent>
                 </Select>
-              </div> */}
+              </div>
               <PriceChart symbol={selectedSymbol} interval={selectedInterval} />
-              {/* <LiveTradingAnalysis /> */}
+              <LiveTradingAnalysis />
               <Accumulators />
+              <AccumulatorSimulation />
               <div className="flex justify-center">
                 <Link href="/history">
                   <Button size="lg">
