@@ -27,7 +27,7 @@ export default function HomePage() {
 
           <TradingErrorBoundary>
             <div className="grid gap-8">
-              <div className="flex flex-col md:flex-row gap-4 items-center justify-center">
+              {/*  <div className="flex flex-col md:flex-row gap-4 items-center justify-center">
                 <Select value={selectedSymbol} onValueChange={setSelectedSymbol}>
                   <SelectTrigger className="w-[180px]">
                     <SelectValue placeholder="Select symbol" />
@@ -52,9 +52,9 @@ export default function HomePage() {
                     <SelectItem value="3600">1 hour</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
+              </div> */}
               <PriceChart symbol={selectedSymbol} interval={selectedInterval} />
-              <LiveTradingAnalysis />
+              {/* <LiveTradingAnalysis /> */}
               <Accumulators />
               <AccumulatorSimulation />
               <div className="flex justify-center">

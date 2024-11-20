@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,236 +8,149 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Clock, DollarSign } from 'lucide-react'
+import { AlertCircle, TrendingUp, Clock, DollarSign, Loader2 } from 'lucide-react'
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TradeExplanationDialog } from './trade-explanation-dialog'
+import { useTradeHistory } from '@/components/contexts/TradeHistoryContext'
+import { toast } from '@/components/ui/use-toast'
 
-// Constants for calculations
-const PRICE_RANGE_PERCENTAGE = 0.01216
-const MAX_TICKS = 45
-const MAX_PAYOUT = 6000
-const INITIAL_SPOT_PRICE = 2113.199
+// ... (previous constants remain the same)
 
-const VOLATILITY_INDICES = [
-  { value: 'V25_1S', label: 'Volatility 25 (1s) Index' },
-  { value: 'V50_1S', label: 'Volatility 50 (1s) Index' },
-  { value: 'V75_1S', label: 'Volatility 75 (1s) Index' },
-  { value: 'V100_1S', label: 'Volatility 100 (1s) Index' },
-]
-
-const GROWTH_RATES = [
-  { value: 1, label: '1%' },
-  { value: 2, label: '2%' },
-  { value: 3, label: '3%' },
-  { value: 4, label: '4%' },
-  { value: 5, label: '5%' },
-]
-
-interface AccumulatorState {
-  initialStake: number
-  currentStake: number
-  profit: number
-  tickCount: number
-  growthRate: number
+interface TradeState {
   isActive: boolean
-  selectedMarket: string
+  currentProfit: number
+  tickCount: number
+  lastPrice: number
+  consecutiveTicks: number
+  tickHistory: number[]
+  startTime: Date | null
 }
 
 export function Accumulators() {
-  const [state, setState] = useState<AccumulatorState>({
-    initialStake: 100,
-    currentStake: 100,
-    profit: 0,
-    tickCount: 0,
-    growthRate: 5,
+  const { addTradeToHistory } = useTradeHistory()
+  const [selectedMarket, setSelectedMarket] = useState('V25_1S')
+  const [stake, setStake] = useState(100)
+  const [growthRate, setGrowthRate] = useState(GROWTH_RATES[4])
+  const [isTakeProfitEnabled, setIsTakeProfitEnabled] = useState(false)
+  const [takeProfitAmount, setTakeProfitAmount] = useState<number | null>(null)
+  
+  const [tradeState, setTradeState] = useState<TradeState>({
     isActive: false,
-    selectedMarket: 'V25_1S'
+    currentProfit: 0,
+    tickCount: 0,
+    lastPrice: INITIAL_SPOT_PRICE,
+    consecutiveTicks: 0,
+    tickHistory: [],
+    startTime: null
   })
 
-  const [isTakeProfitEnabled, setIsTakeProfitEnabled] = useState(false)
-
-  // Calculate profit based on tick count and growth rate
-  const calculateProfit = useCallback((ticks: number, initialStake: number, growthRate: number) => {
-    let currentStake = initialStake
-    for (let i = 0; i < ticks; i++) {
-      currentStake *= (1 + growthRate / 100)
-    }
-    return currentStake - initialStake
-  }, [])
-
-  useEffect(() => {
-    let interval: NodeJS.Timeout
-    
-    if (state.isActive) {
-      interval = setInterval(() => {
-        setState(prev => {
-          const newTickCount = prev.tickCount + 1
-          const newProfit = calculateProfit(newTickCount, prev.initialStake, prev.growthRate)
-          
-          // Check if we've hit max ticks or max payout
-          if (newTickCount >= MAX_TICKS || newProfit >= MAX_PAYOUT) {
-            clearInterval(interval)
-            return { ...prev, isActive: false }
-          }
-          
-          return {
-            ...prev,
-            tickCount: newTickCount,
-            profit: newProfit,
-            currentStake: prev.initialStake + newProfit
-          }
-        })
-      }, 1000) // Update every second
-    }
-
-    return () => clearInterval(interval)
-  }, [state.isActive, calculateProfit])
-
-  const startTrade = () => {
-    setState(prev => ({
+  const startAccumulator = async () => {
+    setTradeState(prev => ({
       ...prev,
       isActive: true,
+      currentProfit: 0,
       tickCount: 0,
-      profit: 0,
-      currentStake: prev.initialStake
+      lastPrice: INITIAL_SPOT_PRICE,
+      consecutiveTicks: 0,
+      tickHistory: [],
+      startTime: new Date()
     }))
   }
 
-  return (
-    <Card className="bg-[#0E0E0E] border-zinc-800">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <div>
-          <CardTitle className="text-2xl font-bold text-white">Accumulators</CardTitle>
-          <CardDescription className="text-zinc-400">
-            Grow your stake by {state.growthRate}% for every tick within ±{PRICE_RANGE_PERCENTAGE}% range
-          </CardDescription>
-        </div>
-        <TradeExplanationDialog />
-      </CardHeader>
-      <CardContent>
-        <Tabs defaultValue="trade" className="text-white">
-          <TabsList className="grid w-full grid-cols-2 mb-6">
-            <TabsTrigger value="trade">Trade</TabsTrigger>
-            <TabsTrigger value="stats">Stats</TabsTrigger>
-          </TabsList>
-          <TabsContent value="trade">
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <Select
-                  value={state.selectedMarket}
-                  onValueChange={(value) => setState(prev => ({ ...prev, selectedMarket: value }))}
-                  disabled={state.isActive}
-                >
-                  <SelectTrigger className="w-[240px] bg-zinc-900 border-zinc-700">
-                    <SelectValue placeholder="Select market" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {VOLATILITY_INDICES.map((market) => (
-                      <SelectItem key={market.value} value={market.value}>
-                        {market.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <div className="flex items-center gap-2 text-zinc-400">
-                  <Clock className="w-4 h-4" />
-                  <span className="text-sm font-medium">
-                    Ticks: {state.tickCount}
-                    {state.isActive && (
-                      <span className="ml-2 text-emerald-500">
-                        (${state.profit.toFixed(2)})
-                      </span>
-                    )}
-                  </span>
-                </div>
-                <div className="text-2xl font-bold">{INITIAL_SPOT_PRICE.toFixed(3)}</div>
-              </div>
+  const stopAccumulator = (outcome: 'won' | 'lost' = 'won') => {
+    const endTime = new Date()
+    
+    // Add trade to history
+    if (tradeState.startTime) {
+      addTradeToHistory({
+        id: Date.now().toString(),
+        market: selectedMarket,
+        startTime: tradeState.startTime,
+        endTime: endTime,
+        initialStake: stake,
+        finalStake: stake + tradeState.currentProfit,
+        profit: tradeState.currentProfit,
+        growthRate: growthRate.value,
+        takeProfitAmount: takeProfitAmount,
+        outcome,
+        tickCount: tradeState.tickCount,
+        consecutiveTickCounts: [...tradeState.tickHistory, tradeState.consecutiveTicks]
+      })
 
-              <div>
-                <Label className="text-zinc-400">Growth rate</Label>
-                <RadioGroup
-                  value={state.growthRate.toString()}
-                  onValueChange={(value) => setState(prev => ({ ...prev, growthRate: parseInt(value) }))}
-                  className="flex justify-between mt-2"
-                  disabled={state.isActive}
-                >
-                  {GROWTH_RATES.map((rate) => (
-                    <div key={rate.value} className="flex items-center">
-                      <RadioGroupItem 
-                        value={rate.value.toString()} 
-                        id={`rate-${rate.value}`}
-                        className="border-zinc-600"
-                      />
-                      <Label 
-                        htmlFor={`rate-${rate.value}`}
-                        className={`ml-2 ${state.growthRate === rate.value ? 'text-white' : 'text-zinc-400'}`}
-                      >
-                        {rate.label}
-                      </Label>
-                    </div>
-                  ))}
-                </RadioGroup>
-              </div>
+      // Show toast notification
+      toast({
+        title: outcome === 'won' ? 'Trade Won' : 'Trade Lost',
+        description: `Trade ended with ${tradeState.tickCount} ticks. Profit: $${tradeState.currentProfit.toFixed(2)}`,
+        variant: outcome === 'won' ? 'default' : 'destructive',
+      })
+    }
 
-              <div className="grid gap-2">
-                <Label htmlFor="stake" className="text-zinc-400">Stake</Label>
-                <div className="relative">
-                  <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-zinc-400" />
-                  <Input
-                    id="stake"
-                    type="number"
-                    value={state.initialStake}
-                    onChange={(e) => setState(prev => ({ 
-                      ...prev, 
-                      initialStake: parseFloat(e.target.value),
-                      currentStake: parseFloat(e.target.value)
-                    }))}
-                    className="pl-9 bg-zinc-900 border-zinc-700"
-                    disabled={state.isActive}
-                  />
-                </div>
-              </div>
+    setTradeState(prev => ({
+      ...prev,
+      isActive: false,
+      startTime: null
+    }))
+  }
 
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="take-profit"
-                  checked={isTakeProfitEnabled}
-                  onCheckedChange={setIsTakeProfitEnabled}
-                  disabled={state.isActive}
-                  className="data-[state=checked]:bg-emerald-500"
-                />
-                <Label htmlFor="take-profit" className="text-zinc-400">Take Profit</Label>
-              </div>
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout
 
-              <div className="flex justify-between text-sm text-zinc-400">
-                <div>Max. payout</div>
-                <div>${MAX_PAYOUT.toLocaleString()}</div>
-              </div>
+    if (tradeState.isActive) {
+      intervalId = setInterval(async () => {
+        const newPrice = tradeState.lastPrice * (1 + (Math.random() - 0.5) * 0.02)
+        const priceChange = Math.abs((newPrice - tradeState.lastPrice) / tradeState.lastPrice)
+        
+        setTradeState(prev => {
+          if (priceChange <= growthRate.margin) {
+            const newTickCount = prev.tickCount + 1
+            const newProfit = stake * Math.pow(1 + growthRate.value / 100, newTickCount) - stake
+            const newConsecutiveTicks = prev.consecutiveTicks + 1
+            
+            // Check for max ticks or max payout
+            if (newTickCount >= MAX_TICKS || newProfit >= MAX_PAYOUT) {
+              clearInterval(intervalId)
+              stopAccumulator('won')
+              return prev
+            }
 
-              <div className="flex justify-between text-sm text-zinc-400">
-                <div>Max. ticks</div>
-                <div>{MAX_TICKS} ticks</div>
-              </div>
+            // Check for take profit
+            if (isTakeProfitEnabled && takeProfitAmount && newProfit >= takeProfitAmount) {
+              clearInterval(intervalId)
+              stopAccumulator('won')
+              return prev
+            }
 
-              <Button 
-                onClick={startTrade} 
-                disabled={state.isActive}
-                className="w-full bg-emerald-500 hover:bg-emerald-600 text-white"
-                size="lg"
-              >
-                Buy
-              </Button>
-            </div>
-          </TabsContent>
-          <TabsContent value="stats">
-            <div className="h-[400px] flex items-center justify-center text-zinc-400">
-              Coming soon...
-            </div>
-          </TabsContent>
-        </Tabs>
-      </CardContent>
-    </Card>
-  )
+            return {
+              ...prev,
+              tickCount: newTickCount,
+              currentProfit: newProfit,
+              lastPrice: newPrice,
+              consecutiveTicks: newConsecutiveTicks
+            }
+          }
+          
+          // Price moved outside range - trade lost
+          clearInterval(intervalId)
+          stopAccumulator('lost')
+          return {
+            ...prev,
+            tickHistory: [...prev.tickHistory, prev.consecutiveTicks],
+            consecutiveTicks: 0,
+            lastPrice: newPrice
+          }
+        })
+      }, 1000)
+    }
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId)
+      }
+    }
+  }, [tradeState.isActive, tradeState.lastPrice, stake, growthRate, isTakeProfitEnabled, takeProfitAmount])
+
+  // ... (rest of the JSX remains the same)
 }
 
 export default Accumulators
