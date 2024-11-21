@@ -9,6 +9,7 @@ import { AccumulatorSimulation } from "@/components/accumulator-simulation"
 import PriceChart from "@/components/price-chart"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { PlateEditor } from '@/components/PlateEditor'
 
 export default function HomePage() {
   const [selectedSymbol, setSelectedSymbol] = useState("R_50")
@@ -27,36 +28,16 @@ export default function HomePage() {
 
           <TradingErrorBoundary>
             <div className="grid gap-8">
-              {/*  <div className="flex flex-col md:flex-row gap-4 items-center justify-center">
-                <Select value={selectedSymbol} onValueChange={setSelectedSymbol}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Select symbol" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="R_10">Volatility 10 Index</SelectItem>
-                    <SelectItem value="R_25">Volatility 25 Index</SelectItem>
-                    <SelectItem value="R_50">Volatility 50 Index</SelectItem>
-                    <SelectItem value="R_75">Volatility 75 Index</SelectItem>
-                    <SelectItem value="R_100">Volatility 100 Index</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={selectedInterval} onValueChange={setSelectedInterval}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Select interval" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="60">1 minute</SelectItem>
-                    <SelectItem value="300">5 minutes</SelectItem>
-                    <SelectItem value="900">15 minutes</SelectItem>
-                    <SelectItem value="1800">30 minutes</SelectItem>
-                    <SelectItem value="3600">1 hour</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div> */}
               <PriceChart symbol={selectedSymbol} interval={selectedInterval} />
-              {/* <LiveTradingAnalysis /> */}
+
               <Accumulators />
               <AccumulatorSimulation />
+              
+              <div className="bg-card rounded-lg shadow-md p-6">
+                <h2 className="text-2xl font-semibold mb-4">Trading Notes</h2>
+                <PlateEditor />
+              </div>
+
               <div className="flex justify-center">
                 <Link href="/history">
                   <Button size="lg">
