@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,7 +13,9 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TradeExplanationDialog } from './trade-explanation-dialog'
 import { useTradeHistory } from '@/components/contexts/TradeHistoryContext'
+import { useAccountBalance } from '@/components/contexts/AccountBalanceContext'
 import { toast } from '@/components/ui/use-toast'
+import { createPriceSimulator, PriceSimulator } from './price-simulator'
 
 const VOLATILITY_INDICES = [
   { value: 'V10_1S', label: 'Volatility 10 (1s) Index' },
@@ -45,7 +47,9 @@ interface TradeState {
   startTime: Date | null
 }
 
+
 export function Accumulators() {
+  const { balance, updateBalance } = useAccountBalance()
   const { addTradeToHistory } = useTradeHistory()
   const [selectedMarket, setSelectedMarket] = useState('V25_1S')
   const [stake, setStake] = useState(100)
@@ -63,7 +67,20 @@ export function Accumulators() {
     startTime: null
   })
 
+  const priceSimulatorRef = useRef<PriceSimulator | null>(null)
+
   const startAccumulator = useCallback(() => {
+    if (balance < stake) {
+      toast({
+        title: 'Insufficient Balance',
+        description: 'Your account balance is too low to place this trade.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    updateBalance(-stake)
+    priceSimulatorRef.current = createPriceSimulator(INITIAL_SPOT_PRICE, 0.01, 0.001)
     setTradeState(prev => ({
       ...prev,
       isActive: true,
@@ -74,20 +91,23 @@ export function Accumulators() {
       tickHistory: [],
       startTime: new Date()
     }))
-  }, [])
+  }, [balance, stake, updateBalance])
 
   const stopAccumulator = useCallback((outcome: 'won' | 'lost' = 'won') => {
     const endTime = new Date()
     
     if (tradeState.startTime) {
+      const finalProfit = outcome === 'won' ? tradeState.currentProfit : -stake
+      updateBalance(stake + finalProfit)
+
       addTradeToHistory({
         id: Date.now().toString(),
         market: selectedMarket,
         startTime: tradeState.startTime,
         endTime: endTime,
         initialStake: stake,
-        finalStake: stake + tradeState.currentProfit,
-        profit: tradeState.currentProfit,
+        finalStake: stake + finalProfit,
+        profit: finalProfit,
         growthRate: growthRate.value,
         takeProfitAmount: takeProfitAmount,
         outcome,
@@ -97,7 +117,7 @@ export function Accumulators() {
 
       toast({
         title: outcome === 'won' ? 'Trade Won' : 'Trade Lost',
-        description: `Trade ended with ${tradeState.tickCount} ticks. Profit: $${tradeState.currentProfit.toFixed(2)}`,
+        description: `Trade ended with ${tradeState.tickCount} ticks. Profit: $${finalProfit.toFixed(2)}`,
         variant: outcome === 'won' ? 'default' : 'destructive',
       })
     }
@@ -107,14 +127,15 @@ export function Accumulators() {
       isActive: false,
       startTime: null
     }))
-  }, [tradeState, selectedMarket, stake, growthRate.value, takeProfitAmount, addTradeToHistory])
+    priceSimulatorRef.current = null
+  }, [tradeState, selectedMarket, stake, growthRate.value, takeProfitAmount, addTradeToHistory, updateBalance])
 
   useEffect(() => {
     let intervalId: NodeJS.Timeout
 
-    if (tradeState.isActive) {
+    if (tradeState.isActive && priceSimulatorRef.current) {
       intervalId = setInterval(() => {
-        const newPrice = tradeState.lastPrice * (1 + (Math.random() - 0.5) * 0.02)
+        const newPrice = priceSimulatorRef.current!.nextPrice()
         const priceChange = Math.abs((newPrice - tradeState.lastPrice) / tradeState.lastPrice)
         
         setTradeState(prev => {
