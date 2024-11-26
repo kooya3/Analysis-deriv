@@ -1,6 +1,13 @@
+'use client'
+
 import React from 'react'
-import { createPlateUI, Plate, PlateContent, PlateProvider } from '@udecode/plate-common'
-import { createPlugins, createParagraphPlugin, createHeadingPlugin, createBoldPlugin, createItalicPlugin, createUnderlinePlugin, createBlockquotePlugin, createCodeBlockPlugin, createListPlugin } from '@udecode/plate-basic'
+import { createPlateUI, Plate, PlateContent, PlateProvider, createPlugins } from '@udecode/plate-common'
+import { createParagraphPlugin } from '@udecode/plate-paragraph'
+import { createHeadingPlugin } from '@udecode/plate-heading'
+import { createBoldPlugin, createItalicPlugin, createUnderlinePlugin } from '@udecode/plate-basic-marks'
+import { createBlockquotePlugin } from '@udecode/plate-block-quote'
+import { createCodeBlockPlugin } from '@udecode/plate-code-block'
+import { createListPlugin } from '@udecode/plate-list'
 
 const plugins = createPlugins([
   createParagraphPlugin(),
@@ -24,15 +31,9 @@ export function PlateEditor() {
     {
       type: 'p',
       children: [
-        {
-          text:
-            "Since it's rich text, you can do things like turn a selection of text ",
-        },
+        { text: "Since it's rich text, you can do things like turn a selection of text " },
         { text: 'bold', bold: true },
-        {
-          text:
-            ', or add a semantically rendered block quote in the middle of the page, like this:',
-        },
+        { text: ', or add a semantically rendered block quote in the middle of the page, like this:' },
       ],
     },
     {

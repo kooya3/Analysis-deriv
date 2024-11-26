@@ -19,6 +19,12 @@ const nextConfig = {
         tls: false,
       };
     }
+    
+    // Add this to help resolve ESM packages
+    config.resolve.extensionAlias = {
+      '.js': ['.js', '.ts', '.tsx'],
+    };
+
     return config;
   },
 };
