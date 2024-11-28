@@ -15,8 +15,8 @@ import { TradeExplanationDialog } from './trade-explanation-dialog'
 import { useTradeHistory } from '@/components/contexts/TradeHistoryContext'
 import { useAccountBalance } from '@/components/contexts/AccountBalanceContext'
 import { toast } from '@/components/ui/use-toast'
-import { createPriceSimulator, PriceSimulator } from './price-simulator'
 
+// Constants
 const VOLATILITY_INDICES = [
   { value: 'V10_1S', label: 'Volatility 10 (1s) Index' },
   { value: 'V25_1S', label: 'Volatility 25 (1s) Index' },
@@ -37,6 +37,7 @@ const MAX_TICKS = 45
 const MAX_PAYOUT = 6000
 const INITIAL_SPOT_PRICE = 2290.831
 
+// Interfaces
 interface TradeState {
   isActive: boolean
   currentProfit: number
@@ -47,8 +48,30 @@ interface TradeState {
   startTime: Date | null
 }
 
+interface MarketConditions {
+  volatility: number
+  trend: number
+  supportLevel: number
+  resistanceLevel: number
+  volume: number
+}
+
+interface RiskParameters {
+  maxPositionSize: number
+  stopLossPercentage: number
+  maxDrawdown: number
+  riskRewardRatio: number
+}
+
+interface PositionMonitoringParams {
+  entryPrice: number
+  stopLossPrice: number
+  takeProfitPrice: number
+  positionSize: number
+}
 
 export function Accumulators() {
+  // State Management
   const { balance, updateBalance } = useAccountBalance()
   const { addTradeToHistory } = useTradeHistory()
   const [selectedMarket, setSelectedMarket] = useState('V25_1S')
@@ -57,6 +80,21 @@ export function Accumulators() {
   const [isTakeProfitEnabled, setIsTakeProfitEnabled] = useState(false)
   const [takeProfitAmount, setTakeProfitAmount] = useState<number | null>(null)
   
+  const [marketConditions, setMarketConditions] = useState<MarketConditions>({
+    volatility: 0.01,
+    trend: 0,
+    supportLevel: INITIAL_SPOT_PRICE * 0.95,
+    resistanceLevel: INITIAL_SPOT_PRICE * 1.05,
+    volume: 0.5
+  })
+  
+  const [riskParams, setRiskParams] = useState<RiskParameters>({
+    maxPositionSize: 1000,
+    stopLossPercentage: 0.02,
+    maxDrawdown: 0.1,
+    riskRewardRatio: 2
+  })
+
   const [tradeState, setTradeState] = useState<TradeState>({
     isActive: false,
     currentProfit: 0,
@@ -67,8 +105,55 @@ export function Accumulators() {
     startTime: null
   })
 
-  const priceSimulatorRef = useRef<PriceSimulator | null>(null)
+  // Utility Functions
+  const calculatePositionSize = useCallback((accountBalance: number) => {
+    const riskAmount = accountBalance * riskParams.stopLossPercentage
+    const positionSize = (riskAmount * riskParams.riskRewardRatio) / riskParams.stopLossPercentage
+    return Math.min(positionSize, riskParams.maxPositionSize)
+  }, [riskParams])
 
+  const calculateNextPrice = useCallback((currentPrice: number) => {
+    const trendComponent = marketConditions.trend * 0.001
+    const volatilityComponent = (Math.random() - 0.5) * marketConditions.volatility
+    const supportResistanceComponent = calculateSupportResistanceEffect(currentPrice)
+    const volumeImpact = (marketConditions.volume - 0.5) * 0.001
+
+    return currentPrice * (1 + trendComponent + volatilityComponent + supportResistanceComponent + volumeImpact)
+  }, [marketConditions])
+
+  const calculateSupportResistanceEffect = useCallback((currentPrice: number) => {
+    const distanceToSupport = (currentPrice - marketConditions.supportLevel) / currentPrice
+    const distanceToResistance = (marketConditions.resistanceLevel - currentPrice) / currentPrice
+    
+    if (distanceToSupport < 0.01) {
+      return 0.001 // Bouncing effect near support
+    }
+    if (distanceToResistance < 0.01) {
+      return -0.001 // Resistance effect
+    }
+    return 0
+  }, [marketConditions])
+
+  const calculateUnrealizedPnL = useCallback((currentPrice: number, entryPrice: number, positionSize: number) => {
+    return positionSize * (currentPrice - entryPrice) / entryPrice
+  }, [])
+
+  const calculateDrawdown = useCallback((unrealizedPnL: number, accountBalance: number) => {
+    return Math.abs(unrealizedPnL) / accountBalance
+  }, [])
+
+  const shouldClosePosition = useCallback((
+    currentPrice: number,
+    stopLossPrice: number,
+    takeProfitPrice: number,
+    drawdown: number
+  ) => {
+    return currentPrice <= stopLossPrice || 
+           currentPrice >= takeProfitPrice || 
+           drawdown >= riskParams.maxDrawdown
+  }, [riskParams.maxDrawdown])
+
+  // Trade Management
   const startAccumulator = useCallback(() => {
     if (balance < stake) {
       toast({
@@ -79,8 +164,17 @@ export function Accumulators() {
       return
     }
 
+    const positionSize = calculatePositionSize(balance)
+    if (stake > positionSize) {
+      toast({
+        title: 'Invalid Position Size',
+        description: 'Stake exceeds maximum position size based on risk parameters.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     updateBalance(-stake)
-    priceSimulatorRef.current = createPriceSimulator(INITIAL_SPOT_PRICE, 0.01, 0.001)
     setTradeState(prev => ({
       ...prev,
       isActive: true,
@@ -91,7 +185,7 @@ export function Accumulators() {
       tickHistory: [],
       startTime: new Date()
     }))
-  }, [balance, stake, updateBalance])
+  }, [balance, stake, updateBalance, calculatePositionSize])
 
   const stopAccumulator = useCallback((outcome: 'won' | 'lost' = 'won') => {
     const endTime = new Date()
@@ -127,15 +221,15 @@ export function Accumulators() {
       isActive: false,
       startTime: null
     }))
-    priceSimulatorRef.current = null
   }, [tradeState, selectedMarket, stake, growthRate.value, takeProfitAmount, addTradeToHistory, updateBalance])
 
+  // Trade Monitoring
   useEffect(() => {
     let intervalId: NodeJS.Timeout
 
-    if (tradeState.isActive && priceSimulatorRef.current) {
+    if (tradeState.isActive) {
       intervalId = setInterval(() => {
-        const newPrice = priceSimulatorRef.current!.nextPrice()
+        const newPrice = calculateNextPrice(tradeState.lastPrice)
         const priceChange = Math.abs((newPrice - tradeState.lastPrice) / tradeState.lastPrice)
         
         setTradeState(prev => {
@@ -151,6 +245,14 @@ export function Accumulators() {
 
             if (isTakeProfitEnabled && takeProfitAmount && newProfit >= takeProfitAmount) {
               stopAccumulator('won')
+              return prev
+            }
+
+            const unrealizedPnL = calculateUnrealizedPnL(newPrice, prev.lastPrice, stake)
+            const drawdown = calculateDrawdown(unrealizedPnL, balance)
+            
+            if (drawdown >= riskParams.maxDrawdown) {
+              stopAccumulator('lost')
               return prev
             }
 
@@ -179,8 +281,22 @@ export function Accumulators() {
         clearInterval(intervalId)
       }
     }
-  }, [tradeState.isActive, tradeState.lastPrice, stake, growthRate, isTakeProfitEnabled, takeProfitAmount, stopAccumulator])
+  }, [
+    tradeState.isActive,
+    tradeState.lastPrice,
+    stake,
+    growthRate,
+    isTakeProfitEnabled,
+    takeProfitAmount,
+    stopAccumulator,
+    calculateNextPrice,
+    calculateUnrealizedPnL,
+    calculateDrawdown,
+    balance,
+    riskParams.maxDrawdown
+  ])
 
+  // Render UI
   return (
     <Card className="mb-6 bg-[#0E0E0E] border-zinc-800">
       <CardHeader>
