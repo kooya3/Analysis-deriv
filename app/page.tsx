@@ -10,6 +10,9 @@ import PriceChart from "@/components/price-chart"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { PlateEditor } from '@/components/PlateEditor'
+import EditorSelectForm from "@/components/select-editor-demo"
+import { Toaster } from 'sonner'
+import { SettingsProvider } from '@/components/editor/settings'
 
 export default function HomePage() {
   const [selectedSymbol, setSelectedSymbol] = useState("R_50")
@@ -35,7 +38,13 @@ export default function HomePage() {
               
               <div className="bg-card rounded-lg shadow-md p-6">
                 <h2 className="text-2xl font-semibold mb-4">Trading Notes</h2>
-                <PlateEditor />
+                <div className="h-screen w-full" data-registry="plate">
+                  <SettingsProvider>
+                    <PlateEditor />
+                  </SettingsProvider>
+                  <Toaster />
+                </div>
+
               </div>
 
               <div className="flex justify-center">
