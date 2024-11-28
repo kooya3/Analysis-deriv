@@ -9,7 +9,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Info, ArrowUp, ArrowDown } from 'lucide-react'
+import { Info, TrendingUp, Timer, DollarSign, AlertTriangle } from 'lucide-react'
 import Image from "next/image"
 
 export function TradeExplanationDialog() {
@@ -23,35 +23,35 @@ export function TradeExplanationDialog() {
       </DialogTrigger>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Understanding Rise/Fall Contracts</DialogTitle>
+          <DialogTitle>Understanding Accumulator Trades</DialogTitle>
           <DialogDescription>
-            Learn how Rise/Fall contracts work and their winning conditions
+            Learn how accumulator trades work and their winning conditions
           </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-6 py-4">
           <section className="space-y-4">
-            <h3 className="text-lg font-semibold">Winning the contract</h3>
+            <h3 className="text-lg font-semibold">How Accumulators Work</h3>
             
             <div className="space-y-2">
               <div className="flex items-start gap-2">
-                <ArrowUp className="w-4 h-4 mt-1 text-green-500" />
-                <p>If you select "Rise", you win the payout if the <span className="font-semibold">exit spot</span> is strictly higher than the <span className="font-semibold">entry spot</span>.</p>
+                <TrendingUp className="w-4 h-4 mt-1 text-emerald-500" />
+                <p>Your stake grows by a selected percentage (growth rate) for each successful tick where the price stays within the specified range.</p>
               </div>
               
               <div className="flex items-start gap-2">
-                <ArrowDown className="w-4 h-4 mt-1 text-red-500" />
-                <p>If you select "Fall", you win the payout if the <span className="font-semibold">exit spot</span> is strictly lower than the <span className="font-semibold">entry spot</span>.</p>
+                <AlertTriangle className="w-4 h-4 mt-1 text-red-500" />
+                <p>If the price moves outside the allowed range at any point, the trade ends and you lose your stake.</p>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4 bg-muted p-4 rounded-lg">
               <div className="space-y-2">
-                <h4 className="font-medium">Rise</h4>
+                <h4 className="font-medium">Successful Trade</h4>
                 <div className="bg-white p-4 rounded-lg">
                   <Image
-                    src="/assets/rises.svg"
-                    alt="Rise contract example"
+                    src="/placeholder.svg?height=150&width=200"
+                    alt="Successful accumulator trade example showing price staying within range"
                     width={200}
                     height={150}
                     className="w-full"
@@ -59,11 +59,11 @@ export function TradeExplanationDialog() {
                 </div>
               </div>
               <div className="space-y-2">
-                <h4 className="font-medium">Fall</h4>
+                <h4 className="font-medium">Failed Trade</h4>
                 <div className="bg-white p-4 rounded-lg">
                   <Image
                     src="/placeholder.svg?height=150&width=200"
-                    alt="Fall contract example"
+                    alt="Failed accumulator trade example showing price moving outside range"
                     width={200}
                     height={150}
                     className="w-full"
@@ -74,31 +74,47 @@ export function TradeExplanationDialog() {
           </section>
 
           <section className="space-y-4">
-            <h3 className="text-lg font-semibold">Entry spot</h3>
+            <h3 className="text-lg font-semibold">Growth Rates and Margins</h3>
             <div className="space-y-2">
-              <p>The <span className="font-semibold">start time</span> is when the contract is processed by our servers and the <span className="font-semibold">entry spot</span> is the next tick thereafter.</p>
-              <p>If you select a <span className="font-semibold">start time</span> in the future, the <span className="font-semibold">start time</span> is that which is selected and the <span className="font-semibold">entry spot</span> is the price in effect at that time.</p>
+              <div className="flex items-start gap-2">
+                <Timer className="w-4 h-4 mt-1 text-blue-500" />
+                <div className="space-y-1">
+                  <p>Each growth rate has a corresponding price movement margin:</p>
+                  <ul className="list-disc list-inside ml-4 space-y-1">
+                    <li>1% growth: ±0.608% margin</li>
+                    <li>2% growth: ±0.812% margin</li>
+                    <li>3% growth: ±1.014% margin</li>
+                    <li>4% growth: ±1.216% margin</li>
+                    <li>5% growth: ±1.418% margin</li>
+                  </ul>
+                </div>
+              </div>
             </div>
           </section>
 
           <section className="space-y-4">
-            <h3 className="text-lg font-semibold">Exit spot</h3>
+            <h3 className="text-lg font-semibold">Take Profit</h3>
             <div className="space-y-2">
-              <p>The <span className="font-semibold">exit spot</span> is the latest tick at or before the <span className="font-semibold">end time</span>.</p>
-              <p>If you select a <span className="font-semibold">start time</span> of "Now", the <span className="font-semibold">end time</span> is the selected number of minutes/hours after the <span className="font-semibold">start time</span> (if less than one day in duration), or at the end of the trading day (if one day or more in duration).</p>
-              <p>If you select a specific <span className="font-semibold">end time</span>, the <span className="font-semibold">end time</span> is the selected time.</p>
+              <div className="flex items-start gap-2">
+                <DollarSign className="w-4 h-4 mt-1 text-emerald-500" />
+                <div className="space-y-1">
+                  <p>You can set an optional take profit amount to automatically close the trade when your profit reaches the specified level.</p>
+                  <p>This helps secure profits in favorable market conditions without having to manually monitor the trade.</p>
+                </div>
+              </div>
             </div>
           </section>
 
           <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg">
             <h4 className="font-medium flex items-center gap-2 mb-2">
               <Info className="w-4 h-4" />
-              Note
+              Important Notes
             </h4>
-            <p className="text-sm">Rise/Fall contracts will be refunded if:</p>
             <ul className="list-disc list-inside text-sm ml-4 space-y-1">
-              <li>There are less than 2 ticks between the start and end times</li>
-              <li>The contract doesn't end within 5 minutes (for tick duration contracts)</li>
+              <li>Maximum payout is limited to $6,000</li>
+              <li>Maximum number of ticks is 45</li>
+              <li>Higher growth rates offer larger potential returns but are harder to achieve</li>
+              <li>The trade will automatically close if you reach either the maximum payout or maximum ticks</li>
             </ul>
           </div>
         </div>
