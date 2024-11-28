@@ -1,56 +1,27 @@
-'use client'
+'use client';
 
-import React from 'react'
-import { createPlateUI, Plate, PlateContent, PlateProvider, createPlugins } from '@udecode/plate-common'
-import { createParagraphPlugin } from '@udecode/plate-paragraph'
-import { createHeadingPlugin } from '@udecode/plate-heading'
-import { createBoldPlugin, createItalicPlugin, createUnderlinePlugin } from '@udecode/plate-basic-marks'
-import { createBlockquotePlugin } from '@udecode/plate-block-quote'
-import { createCodeBlockPlugin } from '@udecode/plate-code-block'
-import { createListPlugin } from '@udecode/plate-list'
+import React from 'react';
+import { DndProvider } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 
-const plugins = createPlugins([
-  createParagraphPlugin(),
-  createHeadingPlugin(),
-  createBoldPlugin(),
-  createItalicPlugin(),
-  createUnderlinePlugin(),
-  createBlockquotePlugin(),
-  createCodeBlockPlugin(),
-  createListPlugin(),
-], {
-  components: createPlateUI(),
-})
+import { Plate } from '@udecode/plate-common/react';
+
+import { useCreateEditor } from '@/components/editor/use-create-editor';
+import { SettingsDialog } from '@/components/editor/settings';
+import { Editor, EditorContainer } from '@/components/plate-ui/editor';
 
 export function PlateEditor() {
-  const initialValue = [
-    {
-      type: 'p',
-      children: [{ text: 'This is editable rich text, much better than a <textarea>!' }],
-    },
-    {
-      type: 'p',
-      children: [
-        { text: "Since it's rich text, you can do things like turn a selection of text " },
-        { text: 'bold', bold: true },
-        { text: ', or add a semantically rendered block quote in the middle of the page, like this:' },
-      ],
-    },
-    {
-      type: 'blockquote',
-      children: [{ text: 'A wise quote.' }],
-    },
-    {
-      type: 'p',
-      children: [{ text: 'Try it out for yourself!' }],
-    },
-  ]
+  const editor = useCreateEditor();
 
   return (
-    <PlateProvider plugins={plugins}>
-      <Plate initialValue={initialValue}>
-        <PlateContent className="p-4 border rounded-md min-h-[200px]" />
+    <DndProvider backend={HTML5Backend}>
+      <Plate editor={editor}>
+        <EditorContainer>
+          <Editor variant="demo" />
+        </EditorContainer>
+
+        <SettingsDialog />
       </Plate>
-    </PlateProvider>
-  )
+    </DndProvider>
+  );
 }
