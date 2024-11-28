@@ -1,24 +1,27 @@
 'use client'
 
-import React, { createContext, useContext, useState, useCallback } from 'react'
-
-const INITIAL_BALANCE = 50000
+import { createContext, useContext, useState, useCallback } from 'react'
 
 interface AccountBalanceContextType {
   balance: number
-  updateBalance: (change: number) => void
+  updateBalance: (amount: number) => void
   resetBalance: () => void
 }
 
 const AccountBalanceContext = createContext<AccountBalanceContextType | undefined>(undefined)
 
+const INITIAL_BALANCE = 60000
+
 export function AccountBalanceProvider({ children }: { children: React.ReactNode }) {
   const [balance, setBalance] = useState(INITIAL_BALANCE)
 
-  const updateBalance = useCallback((change: number) => {
+  const updateBalance = useCallback((amount: number) => {
     setBalance(prevBalance => {
-      const newBalance = prevBalance + change
-      return Math.round(newBalance * 100) / 100 // Round to 2 decimal places
+      const newBalance = prevBalance + amount
+      if (newBalance < 0) {
+        throw new Error('Insufficient balance')
+      }
+      return newBalance
     })
   }, [])
 
