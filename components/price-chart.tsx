@@ -34,20 +34,43 @@ export function PriceChart({ symbol = 'V25_1S', interval = '1800' }: PriceChartP
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null)
+  const tickSubscriptionRef = useRef<any>(null)
   const [selectedSymbol, setSelectedSymbol] = useState(symbol)
   const [selectedInterval, setSelectedInterval] = useState(interval)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [stats, setStats] = useState<SyntheticStats | null>(null)
   const [isLoadingStats, setIsLoadingStats] = useState(false)
+  const [isConnected, setIsConnected] = useState(false)
 
   const getApiSymbol = useCallback((uiSymbol: string) => {
     return MARKET_SYMBOLS.find(m => m.value === uiSymbol)?.apiSymbol || uiSymbol
   }, [])
 
+  const cleanupChart = useCallback(() => {
+    if (chartRef.current) {
+      chartRef.current.remove()
+      chartRef.current = null
+    }
+    candleSeriesRef.current = null
+  }, [])
+
+  const cleanupSubscription = useCallback(async () => {
+    if (tickSubscriptionRef.current) {
+      try {
+        await unsubscribeTicks(tickSubscriptionRef.current)
+      } catch (error) {
+        console.error('Error unsubscribing:', error)
+      }
+      tickSubscriptionRef.current = null
+    }
+  }, [])
+
   const initializeChart = useCallback(() => {
-    if (chartContainerRef.current && !chartRef.current) {
-      chartRef.current = createChart(chartContainerRef.current, {
+    if (!chartContainerRef.current || chartRef.current) return
+
+    try {
+      const chart = createChart(chartContainerRef.current, {
         width: chartContainerRef.current.clientWidth,
         height: 400,
         layout: {
@@ -63,7 +86,9 @@ export function PriceChart({ symbol = 'V25_1S', interval = '1800' }: PriceChartP
           secondsVisible: false,
         },
       })
-      candleSeriesRef.current = chartRef.current.addCandlestickSeries({
+
+      chartRef.current = chart
+      candleSeriesRef.current = chart.addCandlestickSeries({
         upColor: '#10b981',
         downColor: '#ef4444',
         borderUpColor: '#10b981',
@@ -71,52 +96,94 @@ export function PriceChart({ symbol = 'V25_1S', interval = '1800' }: PriceChartP
         wickUpColor: '#10b981',
         wickDownColor: '#ef4444',
       })
+
+      setError(null)
+    } catch (err) {
+      setError('Failed to initialize chart. Please refresh the page.')
+      console.error('Chart initialization error:', err)
     }
   }, [])
-
-  const fetchSyntheticStats = useCallback(async () => {
-    setIsLoadingStats(true)
-    setError(null)
-    try {
-      const apiSymbol = getApiSymbol(selectedSymbol)
-      const fetchedStats = await getSyntheticStats(apiSymbol)
-      setStats(fetchedStats)
-    } catch (error) {
-      console.error('Error fetching synthetic stats:', error)
-      setError('Failed to fetch market statistics. Please try again.')
-    } finally {
-      setIsLoadingStats(false)
-    }
-  }, [selectedSymbol, getApiSymbol])
 
   const updateChartData = useCallback(async () => {
     if (!candleSeriesRef.current) return
 
     setIsLoading(true)
     setError(null)
+    
     try {
       const apiSymbol = getApiSymbol(selectedSymbol)
       const response = await getCandles(apiSymbol, selectedInterval, 100)
       
+      if (!response?.candles || !Array.isArray(response.candles)) {
+        throw new Error('Invalid candle data received')
+      }
+
       const candles = response.candles.map((candle: any) => ({
-        time: candle.epoch as UTCTimestamp,
-        open: candle.open,
-        high: candle.high,
-        low: candle.low,
-        close: candle.close,
+        time: (candle.epoch || 0) as UTCTimestamp,
+        open: candle.open || 0,
+        high: candle.high || 0,
+        low: candle.low || 0,
+        close: candle.close || 0,
       }))
 
-      candleSeriesRef.current.setData(candles)
-      setIsLoading(false)
+      if (candleSeriesRef.current) {
+        candleSeriesRef.current.setData(candles)
+      }
+
+      setIsConnected(true)
+      setError(null)
     } catch (error) {
       console.error('Error updating chart data:', error)
       setError('Failed to update chart data. Please try again.')
+      setIsConnected(false)
+    } finally {
       setIsLoading(false)
     }
   }, [selectedSymbol, selectedInterval, getApiSymbol])
 
+  const setupTickSubscription = useCallback(async () => {
+    await cleanupSubscription()
+
+    try {
+      const apiSymbol = getApiSymbol(selectedSymbol)
+      tickSubscriptionRef.current = await subscribeTicks(apiSymbol)
+      
+      if (!tickSubscriptionRef.current) {
+        throw new Error('Failed to create subscription')
+      }
+
+      tickSubscriptionRef.current.onUpdate((data: any) => {
+        if (!candleSeriesRef.current || !data?.tick?.epoch || !data?.tick?.quote) return
+        
+        candleSeriesRef.current.update({
+          time: data.tick.epoch as UTCTimestamp,
+          open: data.tick.quote,
+          high: data.tick.quote,
+          low: data.tick.quote,
+          close: data.tick.quote,
+        })
+      })
+
+      setIsConnected(true)
+      setError(null)
+    } catch (error) {
+      console.error('Error setting up tick subscription:', error)
+      setError('Failed to connect to market data. Please try again.')
+      setIsConnected(false)
+    }
+  }, [selectedSymbol, getApiSymbol, cleanupSubscription])
+
+  const handleRetryConnection = useCallback(async () => {
+    setError(null)
+    cleanupChart()
+    initializeChart()
+    await updateChartData()
+    await setupTickSubscription()
+  }, [cleanupChart, initializeChart, updateChartData, setupTickSubscription])
+
   useEffect(() => {
     initializeChart()
+    
     const handleResize = () => {
       if (chartRef.current && chartContainerRef.current) {
         chartRef.current.applyOptions({ 
@@ -128,42 +195,23 @@ export function PriceChart({ symbol = 'V25_1S', interval = '1800' }: PriceChartP
     window.addEventListener('resize', handleResize)
     return () => {
       window.removeEventListener('resize', handleResize)
-      if (chartRef.current) {
-        chartRef.current.remove()
-        chartRef.current = null
-      }
+      cleanupChart()
     }
-  }, [initializeChart])
+  }, [initializeChart, cleanupChart])
 
   useEffect(() => {
-    let tickSubscription: any
-
-    const setupTickSubscription = async () => {
-      const apiSymbol = getApiSymbol(selectedSymbol)
-      tickSubscription = await subscribeTicks(apiSymbol)
-      tickSubscription.onUpdate((data: any) => {
-        if (!candleSeriesRef.current || !data.tick) return
-        
-        candleSeriesRef.current.update({
-          time: data.tick.epoch as UTCTimestamp,
-          open: data.tick.quote,
-          high: data.tick.quote,
-          low: data.tick.quote,
-          close: data.tick.quote,
-        })
-      })
+    const setupChart = async () => {
+      await cleanupSubscription()
+      await updateChartData()
+      await setupTickSubscription()
     }
 
-    updateChartData()
-    fetchSyntheticStats()
-    setupTickSubscription()
+    setupChart()
 
     return () => {
-      if (tickSubscription) {
-        tickSubscription.unsubscribe().catch(console.error)
-      }
+      cleanupSubscription()
     }
-  }, [selectedSymbol, selectedInterval, updateChartData, fetchSyntheticStats, getApiSymbol])
+  }, [selectedSymbol, selectedInterval, updateChartData, setupTickSubscription, cleanupSubscription])
 
   const handleSymbolChange = (value: string) => {
     setSelectedSymbol(value)
@@ -176,7 +224,16 @@ export function PriceChart({ symbol = 'V25_1S', interval = '1800' }: PriceChartP
   return (
     <Card className="bg-gray-800 text-gray-100">
       <CardHeader>
-        <CardTitle>Price Chart</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle>Price Chart</CardTitle>
+          <div className="flex items-center space-x-2">
+            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+              isConnected ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'
+            }`}>
+              {isConnected ? 'Connected' : 'Disconnected'}
+            </span>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="flex space-x-4 mb-4">
@@ -207,7 +264,7 @@ export function PriceChart({ symbol = 'V25_1S', interval = '1800' }: PriceChartP
         </div>
         
         {error && (
-          <Alert variant="destructive" className="mb-4 bg-red-900 border-red-700 text-red-100">
+          <Alert variant="destructive" className="mb-4 bg-red-900/50 border-red-700">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
@@ -217,7 +274,7 @@ export function PriceChart({ symbol = 'V25_1S', interval = '1800' }: PriceChartP
           <div ref={chartContainerRef} className="w-full h-[400px]" />
           {isLoading && (
             <div className="absolute inset-0 flex items-center justify-center bg-gray-800/50">
-              <div className="flex items-center space-x-2 text-gray-100">
+              <div className="flex items-center space-x-2">
                 <Loader2 className="h-6 w-6 animate-spin" />
                 <span>Loading chart data...</span>
               </div>
@@ -225,8 +282,17 @@ export function PriceChart({ symbol = 'V25_1S', interval = '1800' }: PriceChartP
           )}
         </div>
 
+        {error && (
+          <Button 
+            onClick={handleRetryConnection}
+            className="w-full bg-blue-600 hover:bg-blue-700"
+          >
+            Retry Connection
+          </Button>
+        )}
+
         {stats && (
-          <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className="grid grid-cols-2 gap-4 mt-4">
             <div className="bg-gray-700 p-4 rounded-lg">
               <p className="text-gray-400">Last Price</p>
               <p className="text-2xl font-bold">{stats.last.toFixed(3)}</p>
@@ -245,25 +311,6 @@ export function PriceChart({ symbol = 'V25_1S', interval = '1800' }: PriceChartP
             </div>
           </div>
         )}
-
-        <Button 
-          onClick={fetchSyntheticStats} 
-          size="lg"
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-lg py-6 rounded-lg shadow-lg transition-all hover:shadow-xl active:transform active:scale-95"
-          disabled={isLoadingStats}
-        >
-          {isLoadingStats ? (
-            <>
-              <RefreshCw className="mr-3 h-6 w-6 animate-spin" />
-              Refreshing Market Data...
-            </>
-          ) : (
-            <>
-              <RefreshCw className="mr-3 h-6 w-6" />
-              Refresh Market Data
-            </>
-          )}
-        </Button>
       </CardContent>
     </Card>
   )
