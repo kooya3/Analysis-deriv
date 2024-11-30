@@ -88,7 +88,7 @@ export function useSettings() {
   return (
     context ?? {
       keys: {
-        openai: '',
+        openai: 'sk-svcacct-4RiMSF2_Rkq2OTRK7wEQ62zpV7zfsCugGtXrRwuTpP0UwAIL8CHVfgMPqqv5ZOLT3BlbkFJv5DWdo5lYh7Rsfhv_EXyNYwUliyKH64L5mH9UTndFBiyTo549UXBOK6zjDiZ20gA',
         uploadthing: '',
       },
       model: models[0],
